@@ -10,7 +10,6 @@ class AppSettings(BaseSettings):
     gemini_api_key: str
 
     # File paths
-    # products_file_path: Path = PROJECT_ROOT / "products.json"
     products_json_path: Path = PROJECT_ROOT / "productinfo" / "products.json"
     products_image_path: Path = PROJECT_ROOT / "productinfo" / "images"
 
@@ -80,4 +79,3 @@ settings = AppSettings()
 
 if not settings.gemini_api_key:
     print("CRITICAL: GEMINI_API_KEY not found. Please check your.env file or environment variables.")
-    # Consider raising SystemExit here if this is a fatal error for startup

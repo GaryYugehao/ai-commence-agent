@@ -30,7 +30,3 @@ class TextRecommendQuery(BaseModel):
 class RecommendationResponse(BaseModel):
     recommendations: List[Product]
     message: Optional[str] = None
-
-# class FileData(BaseModel):
-#     data: str
-#     mime_type: str

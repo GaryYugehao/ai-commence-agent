@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef} from 'react';
 import type { FormEvent } from 'react';
 import axios from 'axios';
 
-// Update this if your backend runs on a different port or if you use Ngrok
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8086';
 
 interface Product {
@@ -19,7 +18,7 @@ interface MessageContent {
     type: 'user' | 'rufus';
     text: string;
     products?: Product[];
-    isLoading?: boolean; // For Rufus's temporary thinking message
+    isLoading?: boolean;
 }
 
 function App() {
@@ -41,14 +40,14 @@ function App() {
             setError(null);
             try {
                 const response = await axios.post(`${API_BASE_URL}/api/agent/start_session`, {
-                    user_info: { source: "web_frontend" } // Optional user info
+                    user_info: { source: "web_frontend" } // Optional user info, leave blank for this prototype
                 });
                 setSessionId(response.data.session_id);
                 setMessages([{ type: 'rufus', text: response.data.initial_message }]);
             } catch (err) {
                 console.error("Error starting session:", err);
                 setError("Failed to connect with Rufus. Please ensure the backend is running and try refreshing.");
-                setMessages([]); // Clear messages on critical error
+                setMessages([]);
             }
             setIsOverallLoading(false);
         };
@@ -147,7 +146,7 @@ function App() {
                     />
                     <div>
                         <h1 className="text-lg sm:text-xl font-semibold tracking-tight">Rufus</h1>
-                        <p className="text-xs text-indigo-200">Online</p> {/* Simplified status */}
+                        <p className="text-xs text-indigo-200">Online</p>
                     </div>
                 </header>
 
@@ -195,20 +194,20 @@ function App() {
                                                 msg.text
                                             )}
                                         </p>
-                                        {/* Product Display - Simplified for this view, your more detailed one can be used */}
+                                        {/* Product Display - Simplified for this view */}
                                         {msg.products && msg.products.length > 0 && !msg.isLoading && (
                                             <div className="mt-2 pt-2 border-t border-slate-300/50">
-                                                <div className="grid grid-cols-1 gap-2"> {/* 确保产品列表有合适的布局容器 */}
+                                                <div className="grid grid-cols-1 gap-2">
                                                     {msg.products.slice(0, 3).map(product => (
                                                         <div key={product.id} className={`border rounded-lg p-2 flex items-center gap-2 ${msg.type === 'user' ? 'bg-indigo-400 border-indigo-300' : 'bg-white border-slate-300'}`}>
                                                             <img
-                                                                src={`${API_BASE_URL}${product.image_url}`} // <-- 这是核心的修改！
+                                                                src={`${API_BASE_URL}${product.image_url}`}
                                                                 alt={product.name}
                                                                 className="w-12 h-12 object-cover rounded flex-shrink-0"
-                                                                onError={(e) => { // 可选：添加一个错误处理，以防图片加载失败
+                                                                onError={(e) => {
                                                                     const target = e.target as HTMLImageElement;
-                                                                    target.onerror = null; // 防止无限循环
-                                                                    target.src = `https://placehold.co/60x60/E2E8F0/AAAAAA?text=Error`; // 备用图片
+                                                                    target.onerror = null;
+                                                                    target.src = `https://placehold.co/60x60/E2E8F0/AAAAAA?text=Error`;
                                                                 }}
                                                             />
                                                             <div>
@@ -237,7 +236,7 @@ function App() {
                         {/* Chat Input Footer (ensure flex-shrink-0) */}
                         <footer className="bg-white p-2.5 sm:p-3 border-t border-slate-200 flex-shrink-0"> {/* Changed background to white for typical card style */}
                             <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-                                {/* Image Upload Button - Let's try a different SVG and ensure visibility */}
+                                {/* Image Upload Button */}
                                 <label
                                     htmlFor="imageUploadInput"
                                     title="Attach image"
@@ -261,7 +260,7 @@ function App() {
                                     type="text"
                                     value={inputText}
                                     onChange={(e) => setInputText(e.target.value)}
-                                    placeholder="Type a message..." // Simplified placeholder
+                                    placeholder="Type a message..."
                                     className="flex-grow p-2.5 sm:p-3 h-10 sm:h-11 border border-slate-300 rounded-full focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm"
                                 />
                                 <button

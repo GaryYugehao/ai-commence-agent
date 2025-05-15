@@ -1,34 +1,17 @@
 @import "tailwindcss";
 
-/* 2. Global styles for html, body, and root - This makes your app full height */
+/* Global styles for html, body, and root */
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: 'Inter', sans-serif; /* Or your preferred font stack */
-  /* Ensure background on html/body doesn't conflict if your App div has its own */
-  background-color: #f3f4f6; /* Example: A light gray matching slate-100 if needed globally */
+  font-family: 'Inter', sans-serif; /
+  background-color: #f3f4f6;
 }
 
-/* 3. Remove or comment out the conflicting Vite default #root styles:
-   The following block from your original App.css is likely causing layout issues
-   by adding padding, max-width, and centering text.
-   For a full-page chat app, you generally don't want these on the root.
-*/
-/*
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-*/
-
-
-/* 4. Custom Scrollbar for Messages Area */
-/* Ensure the <main> element in App.tsx has className="messages-container ..." */
+/* Scrollbar for Messages Area */
 .messages-container::-webkit-scrollbar {
-  width: 6px; /* Made it a bit slimmer */
+  width: 6px;
 }
 
 .messages-container::-webkit-scrollbar-track {
@@ -36,10 +19,10 @@ html, body, #root {
 }
 
 .messages-container::-webkit-scrollbar-thumb {
-  background: #cbd5e1; /* slate-300 */
+  background: #cbd5e1;
   border-radius: 10px;
 }
 
 .messages-container::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8; /* slate-500 */
+  background: #94a3b8;
 }

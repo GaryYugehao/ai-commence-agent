@@ -1,21 +1,19 @@
 import uuid
 from contextlib import asynccontextmanager
-from typing import List, Dict # Added Dict
-from pathlib import Path
+from typing import List, Dict
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
-from google.genai import types as genai_types
 from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from schema import (
-    Product, StartSessionPayload, StartSessionResponse,
-    ChatPayload, ChatResponse, TextRecommendQuery, RecommendationResponse
+    StartSessionPayload, StartSessionResponse,
+    ChatPayload, ChatResponse, TextRecommendQuery, RecommendationResponse, Product
 )
 from utils import (
     load_products_from_file, format_products_for_llm,
-    parse_llm_product_ids_and_fetch
+    _get_recommendations_from_llm, _get_image_description_from_llm
 )
 
 # --- Application Lifecycle (Lifespan Events) ---
@@ -39,6 +37,13 @@ async def lifespan(app: FastAPI):
     app.state.session_chats = {} # Initialize in-memory session chat store
     print("INFO: In-memory session chat store initialized.")
 
+    print("INFO: Configuring static file serving for product images...")
+    if settings.products_image_path.exists() and settings.products_image_path.is_dir():
+        app.mount("/api/products/images", StaticFiles(directory=settings.products_image_path), name="product_images")
+        print(f"INFO: Serving static files from {settings.products_image_path} at /api/products/images")
+    else:
+        print(f"WARNING: Product images directory not found at {settings.products_image_path}. Images will not be served.")
+
     print("INFO: Application startup complete.")
     yield
     # Shutdown
@@ -59,12 +64,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-if settings.products_image_path.exists() and settings.products_image_path.is_dir():
-    app.mount("/api/products/images", StaticFiles(directory=settings.products_image_path), name="product_images")
-    print(f"INFO: Serving static files from {settings.products_image_path} at /api/products/images")
-else:
-    print(f"WARNING: Product images directory not found at {settings.products_image_path}. Images will not be served.")
-
 # --- CORS Configuration ---
 app.add_middleware(
     CORSMiddleware,
@@ -74,7 +73,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Dependencies ---
+# --- Dependencies Injection---
 def get_gemini_client(request: Request) -> genai.Client:
     if not hasattr(request.app.state, 'gemini_client') or request.app.state.gemini_client is None:
         print("ERROR: Gemini client not available in app.state.")
@@ -122,7 +121,6 @@ async def start_session(
 
     try:
         chat = gemini_client.aio.chats.create(model=settings.chat_model_name)
-
         response = await chat.send_message(initial_system_prompt_content)
         rufus_greeting = response.text
 
@@ -159,21 +157,19 @@ async def chat_with_agent(
 async def recommend_text_products(
         payload: TextRecommendQuery,
         gemini_client: genai.Client = Depends(get_gemini_client),
-        products_db: List = Depends(get_products_db)
+        products_db: List[Dict] = Depends(get_products_db)
 ):
-    """Recommends products based on a textual query."""
     user_query = payload.query
     print(f"INFO: Received text recommendation query: '{user_query}'")
 
     if not products_db:
-        print("WARNING: Product database is empty. Cannot provide text recommendations.")
+        print("WARNING: Product database is empty. Cannot provide image-based recommendations.")
         return RecommendationResponse(
             recommendations=[],
             message="Rufus: I'm sorry, but our product catalog seems to be empty at the moment."
         )
 
-    product_context = format_products_for_llm(products_db, products_sample_size=len(products_db))
-
+    product_context = format_products_for_llm(products_db)
     prompt = settings.text_recommendation_prompt_template.format(
         user_query=user_query,
         product_context=product_context
@@ -181,22 +177,16 @@ async def recommend_text_products(
     print(f"DEBUG: Text recommendation prompt (first 100 chars): {prompt[:100]}...")
 
     try:
-        response = gemini_client.models.generate_content(
-            model=settings.text_recommendation_model_name,
-            contents=[prompt]
+        recommended_products_details, message_segment = await _get_recommendations_from_llm(
+            prompt,
+            settings.text_recommendation_model_name,
+            gemini_client,
+            products_db
         )
-        #response = await model.generate_content(contents=[prompt])
-        llm_response_text = response.text.strip()
-        print(f"INFO: LLM response for text recommendation: '{llm_response_text}'")
-
-        recommended_products_details, message_segment = parse_llm_product_ids_and_fetch(llm_response_text, products_db)
-
         rufus_message = f"Rufus: Okay, for your query '{user_query}', I've looked through our products." + message_segment
         print(f"INFO: Final Rufus message for text recommendation: {rufus_message}")
         return RecommendationResponse(recommendations=recommended_products_details, message=rufus_message)
-
     except Exception as e:
-        print(f"ERROR: Error during text recommendation with Gemini API ({settings.text_recommendation_model_name}): {e}")
         raise HTTPException(status_code=500, detail="Error processing text recommendation. Please check server logs.")
 
 
@@ -204,9 +194,8 @@ async def recommend_text_products(
 async def recommend_image_products(
         file: UploadFile = File(...),
         gemini_client: genai.Client = Depends(get_gemini_client),
-        products_db: List = Depends(get_products_db)
+        products_db: List[Dict] = Depends(get_products_db)
 ):
-    """Recommends products based on an uploaded image."""
     print(f"INFO: Received image recommendation request for file: {file.filename} (type: {file.content_type})")
 
     if not products_db:
@@ -217,45 +206,35 @@ async def recommend_image_products(
         )
 
     try:
-        contents = await file.read()
-        if not contents:
-            print(f"WARNING: Uploaded file {file.filename} is empty.")
-            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-
-        image_part = genai_types.Part(inline_data=genai_types.Blob(mime_type=file.content_type, data=contents))
-
-        vision_model_payload = [settings.image_to_text_prompt, image_part]
-        print("DEBUG: Sending image to vision model for description...")
-
-        vision_response = gemini_client.models.generate_content(
-            model=settings.image_description_model_name,
-            contents=[vision_model_payload]
+        image_description = await _get_image_description_from_llm(
+            file,
+            gemini_client,
+            settings.image_to_text_prompt,
+            settings.image_description_model_name
         )
 
-        image_description = vision_response.text.strip()
-        print(f"INFO: Vision model image description: '{image_description}'")
+        if image_description is None:
+            if hasattr(file, 'filename') and file.filename and not await file.seek(0) and not await file.read():
+                print(f"WARNING: Uploaded file {file.filename} is empty.")
+                raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
-        if not image_description or "CANNOT IDENTIFY" in image_description.upper():
             message = "Rufus: I'm sorry, I couldn't clearly identify a product in the image you sent."
             print(f"INFO: {message}")
             return RecommendationResponse(recommendations=[], message=message)
 
-        product_context = format_products_for_llm(products_db, products_sample_size=len(products_db))
+        product_context = format_products_for_llm(products_db)
         text_reco_prompt_from_image = settings.text_reco_from_image_prompt_template.format(
             image_description=image_description,
             product_context=product_context
         )
         print(f"DEBUG: Text recommendation from image prompt (first 100 chars): {text_reco_prompt_from_image[:100]}...")
 
-        text_reco_response = gemini_client.models.generate_content(
-            model=settings.text_recommendation_model_name,
-            contents=[text_reco_prompt_from_image]
+        recommended_products_details, message_segment = await _get_recommendations_from_llm(
+            text_reco_prompt_from_image,
+            settings.text_recommendation_model_name,
+            gemini_client,
+            products_db
         )
-
-        llm_response_text = text_reco_response.text.strip()
-        print(f"INFO: LLM response for image-based text recommendation: '{llm_response_text}'")
-
-        recommended_products_details, message_segment = parse_llm_product_ids_and_fetch(llm_response_text, products_db)
 
         rufus_message = f"Rufus: Based on the image (which I see as about '{image_description}')," + message_segment
         print(f"INFO: Final Rufus message for image recommendation: {rufus_message}")
@@ -264,9 +243,5 @@ async def recommend_image_products(
     except HTTPException:
         raise
     except Exception as e:
-        if "PermissionDenied" in str(e) or "API key" in str(e):
-            print(f"ERROR: Gemini API permission or key error during image recommendation: {e}")
-            raise HTTPException(status_code=403, detail="Rufus: There seems to be an issue with API access for image processing.")
-
-        print(f"ERROR: Error during image recommendation (model: {settings.image_description_model_name} / {settings.text_recommendation_model_name}): {e}")
+        print(f"ERROR: Unexpected error during image recommendation processing: {e}")
         raise HTTPException(status_code=500, detail="Rufus: Sorry, I encountered an error processing the image recommendation.")
