@@ -10,7 +10,9 @@ class AppSettings(BaseSettings):
     gemini_api_key: str
 
     # File paths
-    products_file_path: Path = PROJECT_ROOT / "products.json"
+    # products_file_path: Path = PROJECT_ROOT / "products.json"
+    products_json_path: Path = PROJECT_ROOT / "productinfo" / "products.json"
+    products_image_path: Path = PROJECT_ROOT / "productinfo" / "images"
 
     # CORS settings
     allowed_origins: List[str] = ["http://localhost:3000", "http://localhost:5173"]

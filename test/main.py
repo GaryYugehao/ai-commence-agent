@@ -1,11 +1,12 @@
 import uuid
 from contextlib import asynccontextmanager
 from typing import List, Dict # Added Dict
-
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from google import genai
 from google.genai import types as genai_types
+from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from schema import (
@@ -32,7 +33,7 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(f"Failed to initialize Gemini client: {e}") from e
 
     print("INFO: Loading product database...")
-    app.state.products_db = load_products_from_file()
+    app.state.products_db = load_products_from_file(settings.products_json_path)
     print(f"INFO: Loaded {len(app.state.products_db)} products into app state.")
 
     app.state.session_chats = {} # Initialize in-memory session chat store
@@ -57,6 +58,12 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+if settings.products_image_path.exists() and settings.products_image_path.is_dir():
+    app.mount("/api/products/images", StaticFiles(directory=settings.products_image_path), name="product_images")
+    print(f"INFO: Serving static files from {settings.products_image_path} at /api/products/images")
+else:
+    print(f"WARNING: Product images directory not found at {settings.products_image_path}. Images will not be served.")
 
 # --- CORS Configuration ---
 app.add_middleware(

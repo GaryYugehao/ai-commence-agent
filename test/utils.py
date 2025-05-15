@@ -2,24 +2,25 @@
 import json
 import base64
 from typing import List, Dict, Tuple, Optional
+from pathlib import Path
 
 from google.genai.types import Part
 
 from schema import Product
 from config import settings
 
-def load_products_from_file() -> List:
+def load_products_from_file(file_path: Path) -> List:
     """Loads product data from the JSON file specified in settings."""
     try:
-        with open(settings.products_file_path, 'r') as f:
+        with open(file_path, 'r') as f:
             products = json.load(f)
-            print(f"INFO: Successfully loaded {len(products)} products from {settings.products_file_path}")
+            print(f"INFO: Successfully loaded {len(products)} products from {file_path}")
             return products
     except FileNotFoundError:
-        print(f"ERROR: Product file not found at {settings.products_file_path}. Returning empty list.")
+        print(f"ERROR: Product file not found at {file_path}. Returning empty list.")
         return []
     except json.JSONDecodeError:
-        print(f"ERROR: Error decoding JSON from {settings.products_file_path}. Returning empty list.")
+        print(f"ERROR: Error decoding JSON from {file_path}. Returning empty list.")
         return []
     except Exception as e:
         print(f"ERROR: An unexpected error occurred while loading products: {e}")
