@@ -33,6 +33,9 @@ To see example responses for each feature, you can try the following inputs:
     * Upload `./example_pics/pic2.jpg` .
       *(Note: For image recommendations, ensure the backend is configured to serve images from your `productinfo/images/` directory, and that the sample images exist and are representative of products in your `products.json` for meaningful results.)*
 
+![ai-commerce-agent-ezgif com-speed](https://github.com/user-attachments/assets/07696eb4-ba23-4004-9dd5-27c53222616b)
+
+
 ## Tech Stack
 
 * **Backend:**
