@@ -10,7 +10,7 @@ The AI E-Commerce Agent offers three core functionalities to assist users:
 
 2.  **Text-Based Product Recommendation:**
     * Users can request product recommendations by describing what they are looking for in text (e.g., "Recommend a t-shirt for sports").
-    * If the user's query includes keywords like "recommend," "find," or "search for," the backend logic triggers a specific workflow.
+    * If the user's query includes keywords like "recommend," the backend logic triggers a specific workflow.
     * The agent then consults the `products_db` (a JSON file containing product information) and leverages a Gemini language model to match the user's query against the product descriptions and tags, returning relevant product suggestions.
 
 3.  **Image-Based Product Search:**
